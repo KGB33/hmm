@@ -1,7 +1,9 @@
-import Options.Applicative
+import Data.List
 import Data.String.Utils
+import Options.Applicative
 import System.Process
 
+-- Parser Info
 repo :: Parser (Maybe String)
 repo =
   optional $
@@ -30,6 +32,7 @@ data Options = Options
 opts :: Parser Options
 opts = Options <$> repo <*> branch
 
+-- Main
 main :: IO ()
 main = hmm =<< execParser args
   where
@@ -41,23 +44,43 @@ main = hmm =<< execParser args
             <> header "header"
         )
 
-computeDefaultBranch :: IO String
-computeDefaultBranch = do
-    b <- readProcess "hostname" ["--short"] []
-    return (strip b)
-
-computeDefaultRepo :: IO String
-computeDefaultRepo = do
-    r <- readProcess "hostname" ["--long"] []
-    return (strip r)
-
+-- EntryPoint
 hmm :: Options -> IO ()
 hmm options = do
   r <- maybe computeDefaultRepo return (optRepo options)
   b <- maybe computeDefaultBranch return (optBranch options)
-  putStrLn $ "Debug: Repo: " ++ r ++ " Branch: " ++ b
+  let sessionName :: String = r ++ "-" ++ b
 
--- hmm (Options Nothing Nothing) = putStrLn "Debug: no args provided"
--- hmm (Options (Just r) Nothing) = putStrLn $ "Debug: repo: " ++ r ++ " Branch not provided"
--- hmm (Options Nothing (Just b)) = putStrLn $ "Debug: repo not provided, Branch: " ++ b
--- hmm (Options (Just r) (Just b)) = putStrLn $ "Debug: Repo: " ++ r ++ " Branch: " ++ b
+  (_, currSessions, _) <- readProcessWithExitCode "tmux" ["ls"] []
+  let cmd = case currSessions of
+        s | sessionName `isInfixOf` s -> ["attach-session", "-t"]
+        _ -> ["new-session", "-s"]
+  callProcess "tmux" $ cmd ++ [sessionName]
+
+-- Calcuate Branch & Repo info
+computeDefaultBranch :: IO String
+computeDefaultBranch = do
+  b <- readProcess "git" ["rev-parse", "--abbrev-ref", "HEAD"] []
+  return (strip b)
+
+-- There are two possible options:
+--   * The user is in a worktree:
+--        `/home/kgb33/Code/nasty/worktrees/main`
+--   * The user is in a standard repo:
+--        `/home/kgb33/Code/hmm/.git`
+-- Because there is only zero or one element to the right of our anchor element,
+-- Its easiest to revese the list before massing it to the fucntion and match 'backward'
+-- anchor \/ , repo \/
+-- i.e. [".git", "hmm", "Code", ...]
+parseDefaultRepo :: [String] -> String
+parseDefaultRepo (_ : "worktrees" : r : _) = r
+parseDefaultRepo (".git" : r : _) = r
+parseDefaultRepo _ = "unk"
+
+computeDefaultRepo :: IO String
+computeDefaultRepo = do
+  r <- readProcess "git" ["rev-parse", "--path-format=absolute", "--git-dir"] []
+  let s = strip r
+  let l = split "/" s
+  return $ parseDefaultRepo (reverse l)
+
