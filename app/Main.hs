@@ -49,7 +49,7 @@ hmm :: Options -> IO ()
 hmm options = do
   r <- maybe computeDefaultRepo return (optRepo options)
   b <- maybe computeDefaultBranch return (optBranch options)
-  let sessionName :: String = r ++ "-" ++ b
+  let sessionName :: String = normalizeTmuxSessionName  $ r ++ "-" ++ b
 
   (_, currSessions, _) <- readProcessWithExitCode "tmux" ["ls"] []
   let cmd = case currSessions of
@@ -84,3 +84,8 @@ computeDefaultRepo = do
   let l = split "/" s
   return $ parseDefaultRepo (reverse l)
 
+normalizeTmuxSessionName :: String -> String
+normalizeTmuxSessionName = map replaceDots
+  where
+    replaceDots '.' = '_'
+    replaceDots c = c
