@@ -2,7 +2,7 @@
   description = "Haskell Mux Manager";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -11,7 +11,8 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        haskellPackages = pkgs.haskellPackages;
+        haskellPackages = pkgs.haskell.packages.ghc9141;
+
 
         jailbreakUnbreak = pkg:
           pkgs.haskell.lib.doJailbreak (pkg.overrideAttrs (_: { meta = { }; }));
@@ -30,7 +31,6 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             haskellPackages.haskell-language-server # you must build it with your ghc to work
-            ghcid
             cabal-install
           ];
           inputsFrom = map (__getAttr "env") (__attrValues self.packages.${system});
